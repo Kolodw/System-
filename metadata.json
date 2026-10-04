@@ -1,0 +1,8 @@
+{
+  "name": "The System RPG: GM & Reincarnation Chronicle",
+  "description": "ระบบจำลอง Text-based RPG ขับเคลื่อนโดย Game Master & The System เพื่อการเกิดใหม่และผจญภัยแบบสมจริง",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
