@@ -58,14 +58,53 @@ const GM_SYSTEM_PROMPT = `[Role & Objective]
 <!--SYSTEM_SYNC:{"name":"...","race":"...","title":"...","level":1,"hp":100,"maxHp":100,"mp":50,"maxMp":50,"location":"...","dangerLevel":"Safe|Low|Medium|High|Deadly","skills":["สกิล 1","สกิล 2"],"inventory":["ไอเทม 1"],"objective":"เป้าหมายปัจจุบัน","suggestedActions":["ทางเลือกที่ 1","ทางเลือกที่ 2","ทางเลือกที่ 3"]}-->
 (หมายเหตุ: อย่าลืมปิดแท็ก <!--SYSTEM_SYNC:...--> ให้ถูกต้อง และรักษาค่าตัวเลข/ข้อมูลให้สอดคล้องกับเนื้อเรื่อง)`;
 
+async function generateGMStory(contents: any[]): Promise<string> {
+  const models = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  let lastErr: any = null;
+
+  for (const model of models) {
+    // Retry each model up to 2 times on transient capacity errors (503/429)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            systemInstruction: GM_SYSTEM_PROMPT,
+            temperature: 0.85,
+            topP: 0.95,
+          },
+        });
+        if (res && res.text) {
+          return res.text;
+        }
+      } catch (err: any) {
+        lastErr = err;
+        const status =
+          err?.status || err?.statusCode || (String(err?.message || '').includes('503') ? 503 : 0);
+
+        // If 503, 429, or 500, backoff briefly before retrying or switching models
+        if (attempt < 2 && (status === 503 || status === 429 || status === 500)) {
+          await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+          continue;
+        }
+        // Move to the next model on persistent failure
+        break;
+      }
+    }
+  }
+
+  throw lastErr || new Error('Game Master system is temporarily unavailable. Please retry.');
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
-  // Chat Endpoint with SSE streaming
+  // Chat Endpoint with robust streaming and no SDK buffer artifacts
   app.post('/api/chat', async (req: Request, res: Response) => {
     try {
-      const { messages, userActionType } = req.body;
+      const { messages } = req.body;
 
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: 'Messages array is required' });
@@ -83,20 +122,17 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
 
-      const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3.8-flash',
-        contents,
-        config: {
-          systemInstruction: GM_SYSTEM_PROMPT,
-          temperature: 0.85,
-          topP: 0.95,
-        },
-      });
+      const fullText = await generateGMStory(contents);
 
-      for await (const chunk of responseStream) {
-        const text = chunk.text; // Correct property extraction
-        if (text) {
-          res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
+      // Stream text in fast, fluid phrase chunks to give authentic RPG typewriter feel
+      const words = fullText.split(/(\s+|\n+)/);
+      let batch = '';
+      for (let i = 0; i < words.length; i++) {
+        batch += words[i];
+        if (batch.length >= 20 || i === words.length - 1) {
+          res.write(`data: ${JSON.stringify({ chunk: batch })}\n\n`);
+          batch = '';
+          await new Promise((r) => setTimeout(r, 12));
         }
       }
 
@@ -130,42 +166,51 @@ async function startServer() {
         .trim()
         .slice(0, 800);
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash-lite-tts',
-        contents: [
-          {
-            role: 'user',
-            parts: [
+      const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
+      let base64Audio: string | null = null;
+
+      for (const ttsModel of ttsModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model: ttsModel,
+            contents: [
               {
-                text: cleanText,
-                speechMetadata: {
-                  style: 'Deep, dramatic, charismatic RPG Game Master and System overseer',
-                },
+                role: 'user',
+                parts: [
+                  {
+                    text: cleanText,
+                    speechMetadata: {
+                      style: 'Deep, dramatic, charismatic RPG Game Master and System overseer',
+                    },
+                  },
+                ],
               },
             ],
-          },
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: voice || 'Fenrir' },
+            config: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: voice || 'Fenrir' },
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      const base64Audio =
-        response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          base64Audio =
+            response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+          if (base64Audio) break;
+        } catch {
+          // Fall back to alternate TTS model
+        }
+      }
 
       if (base64Audio) {
         res.json({ audio: base64Audio });
       } else {
-        res.status(500).json({ error: 'No audio returned from model' });
+        res.status(503).json({ error: 'TTS is temporarily busy' });
       }
     } catch (err: any) {
-      console.error('TTS error:', err);
-      res.status(500).json({ error: err.message || 'Failed to synthesize speech' });
+      res.status(500).json({ error: 'Failed to synthesize speech' });
     }
   });
 

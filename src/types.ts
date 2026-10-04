@@ -45,6 +45,19 @@ export interface ChatMessage {
   systemSync?: Partial<CharacterState>;
 }
 
+export type ThemeMode = 'dark' | 'white';
+
+export interface ChatSessionArchive {
+  id: string;
+  name: string;
+  world: string;
+  characterState: CharacterState;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+}
+
 export interface GamePreset {
   id: string;
   title: string;

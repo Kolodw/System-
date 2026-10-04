@@ -4,7 +4,14 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CharacterState, ChatMessage, DiceRollResult, GamePreset } from './types';
+import {
+  CharacterState,
+  ChatMessage,
+  DiceRollResult,
+  GamePreset,
+  ThemeMode,
+  ChatSessionArchive,
+} from './types';
 import { INITIAL_GM_MESSAGE_CONTENT, PRESETS } from './data/presets';
 import { VoidBackground } from './components/VoidBackground';
 import { StatusHUD } from './components/StatusHUD';
@@ -12,6 +19,8 @@ import { MessageList } from './components/MessageList';
 import { ActionControls } from './components/ActionControls';
 import { SetupModal } from './components/SetupModal';
 import { DiceModal } from './components/DiceModal';
+import { ResetModal } from './components/ResetModal';
+import { ArchivesModal } from './components/ArchivesModal';
 import { sound } from './utils/sound';
 import confetti from 'canvas-confetti';
 import {
@@ -22,6 +31,9 @@ import {
   X,
   Volume2,
   VolumeX,
+  Archive,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 const INITIAL_CHARACTER_STATE: CharacterState = {
@@ -55,7 +67,13 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed.messages && parsed.messages.length > 0) {
-          return parsed.messages;
+          // Clean any previous artifacts of "Incomplete JSON segment at the end"
+          return parsed.messages.map((m: ChatMessage) => ({
+            ...m,
+            content: m.content
+              .replace(/\n\n\*\[แจ้งเตือนระบบ: เกิดข้อผิดพลาด.*?Incomplete JSON segment.*?\]\*/gi, '')
+              .trim(),
+          }));
         }
       } catch (e) {
         console.error('Failed to parse autosave', e);
@@ -99,6 +117,44 @@ export default function App() {
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [isDiceOpen, setIsDiceOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // Background Theme: 'dark' (black) or 'white'
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem('the_system_theme');
+    return saved === 'white' ? 'white' : 'dark';
+  });
+
+  const isWhite = themeMode === 'white';
+
+  useEffect(() => {
+    localStorage.setItem('the_system_theme', themeMode);
+  }, [themeMode]);
+
+  const toggleTheme = () => {
+    sound.playClick();
+    setThemeMode((prev) => (prev === 'dark' ? 'white' : 'dark'));
+  };
+
+  // Chronicle Archives list (Old chats saved / stored)
+  const [archives, setArchives] = useState<ChatSessionArchive[]>(() => {
+    const saved = localStorage.getItem('the_system_rpg_archives');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error('Failed to parse archives', e);
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('the_system_rpg_archives', JSON.stringify(archives));
+  }, [archives]);
+
+  const [isArchivesOpen, setIsArchivesOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // Check if player is still in Phase 1 (The White Void)
   const isVoidPhase =
@@ -199,7 +255,14 @@ export default function App() {
       });
 
       if (!response.ok || !response.body) {
-        throw new Error(`Server returned ${response.status}`);
+        let errMsg = `เซิร์ฟเวอร์ตอบกลับสถานะ ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData.error) errMsg = errData.error;
+        } catch {
+          // ignore json parse error
+        }
+        throw new Error(errMsg);
       }
 
       const reader = response.body.getReader();
@@ -228,12 +291,15 @@ export default function App() {
                 );
               }
               if (parsed.error) {
-                accumulatedText += `\n\n*[แจ้งเตือนระบบ: เกิดข้อผิดพลาด ${parsed.error}]*`;
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === modelMsgId ? { ...msg, content: accumulatedText } : msg
-                  )
-                );
+                // If it's the SDK trailing buffer artifact and we already have content, don't show error
+                if (!parsed.error.includes('Incomplete JSON') || !accumulatedText) {
+                  accumulatedText += `\n\n*[แจ้งเตือนระบบ: เกิดข้อผิดพลาด ${parsed.error}]*`;
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === modelMsgId ? { ...msg, content: accumulatedText } : msg
+                    )
+                  );
+                }
               }
             } catch {
               // Ignore partial JSON
@@ -392,54 +458,204 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Reset Game
-  const handleReset = () => {
-    sound.playClick();
-    if (window.confirm('คุณต้องการรีเซ็ตและเริ่มต้นเรื่องราวใหม่ตั้งแต่พื้นที่สีขาวว่างเปล่าหรือไม่?')) {
-      localStorage.removeItem('the_system_rpg_autosave');
-      setMessages([
-        {
-          id: 'initial-gm',
-          role: 'model',
-          content: INITIAL_GM_MESSAGE_CONTENT,
-          timestamp: Date.now(),
-          suggestedActions: [
-            'เลือกต้นแบบ: นักล่าอสูรคำสาปโลหิต (Dark Fantasy)',
-            'เลือกต้นแบบ: ซินดิเคทเงาไซเบอร์เนติกส์ (Cyberpunk 2099)',
-            'เลือกต้นแบบ: มัจจุราชวันสิ้นโลก (Zombie Apocalypse)',
-            'เลือกต้นแบบ: จักรพรรดิแห่งดันเจี้ยนมรณะ (Shadow Monarch)',
-          ],
-        },
-      ]);
-      setCharacterState(INITIAL_CHARACTER_STATE);
+  // Save current active session into archives
+  const handleArchiveCurrentChat = (notify: boolean = true) => {
+    if (messages.length <= 1 && characterState.name === INITIAL_CHARACTER_STATE.name) {
+      if (notify) alert('ยังไม่มีบทสนทนาที่ต้องการจัดเก็บ');
+      return null;
     }
+    sound.playLevelUp();
+    const archiveItem: ChatSessionArchive = {
+      id: `archive-${Date.now()}`,
+      name: characterState.name || 'ดวงวิญญาณแห่งความว่างเปล่า',
+      world: characterState.world || 'พื้นที่สีขาวว่างเปล่า',
+      characterState: { ...characterState },
+      messages: [...messages],
+      createdAt: messages[0]?.timestamp || Date.now(),
+      updatedAt: Date.now(),
+      messageCount: messages.length,
+    };
+
+    setArchives((prev) => [archiveItem, ...prev]);
+    if (notify) {
+      alert(`จัดเก็บประวัติเรื่องราวของ "${archiveItem.name}" เข้าสู่คลังเรียบร้อยแล้ว!`);
+    }
+    return archiveItem;
+  };
+
+  // Archive and reset to start new
+  const handleArchiveAndReset = () => {
+    handleArchiveCurrentChat(false);
+    resetToWhiteVoid();
+  };
+
+  // Delete active session and reset to start new
+  const handleDeleteAndReset = () => {
+    resetToWhiteVoid();
+  };
+
+  const resetToWhiteVoid = () => {
+    localStorage.removeItem('the_system_rpg_autosave');
+    setMessages([
+      {
+        id: 'initial-gm',
+        role: 'model',
+        content: INITIAL_GM_MESSAGE_CONTENT,
+        timestamp: Date.now(),
+        suggestedActions: [
+          'เลือกต้นแบบ: นักล่าอสูรคำสาปโลหิต (Dark Fantasy)',
+          'เลือกต้นแบบ: ซินดิเคทเงาไซเบอร์เนติกส์ (Cyberpunk 2099)',
+          'เลือกต้นแบบ: มัจจุราชวันสิ้นโลก (Zombie Apocalypse)',
+          'เลือกต้นแบบ: จักรพรรดิแห่งดันเจี้ยนมรณะ (Shadow Monarch)',
+        ],
+      },
+    ]);
+    setCharacterState(INITIAL_CHARACTER_STATE);
+    sound.playChime();
+  };
+
+  // Load an archive to play
+  const handleLoadArchive = (archive: ChatSessionArchive) => {
+    sound.playLevelUp();
+    setMessages(archive.messages);
+    setCharacterState(archive.characterState);
+    localStorage.setItem(
+      'the_system_rpg_autosave',
+      JSON.stringify({
+        messages: archive.messages,
+        characterState: archive.characterState,
+        savedAt: Date.now(),
+      })
+    );
+    setIsArchivesOpen(false);
+  };
+
+  // Delete single archive
+  const handleDeleteArchive = (id: string) => {
+    sound.playCombat();
+    setArchives((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  // Clear all archives
+  const handleClearAllArchives = () => {
+    sound.playCombat();
+    setArchives([]);
+  };
+
+  // Export archive to markdown
+  const handleExportArchive = (archive: ChatSessionArchive) => {
+    sound.playClick();
+    const title = `# บันทึกตำนานการจุติ (Chronicle of Reincarnation): ${archive.characterState.name}\n\n`;
+    const meta = `> โลก: ${archive.characterState.world}\n> เผ่าพันธุ์: ${archive.characterState.race} | ระดับ: Lv.${archive.characterState.level}\n> วันที่บันทึก: ${new Date(archive.updatedAt || archive.createdAt).toLocaleString()}\n\n---\n\n`;
+
+    const body = archive.messages
+      .map((m) => {
+        const speaker = m.role === 'model' ? '### 🌌 Game Master & The System' : '### ⚔️ ผู้เล่น';
+        const cleanContent = m.content.replace(/<!--SYSTEM_SYNC:[\s\S]*?-->/g, '').trim();
+        return `${speaker}\n\n${cleanContent}\n\n---\n`;
+      })
+      .join('\n');
+
+    const blob = new Blob([title + meta + body], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reincarnation_${archive.characterState.name || 'hero'}_${Date.now()}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
-      {/* Dynamic Ambient Background */}
-      <VoidBackground isVoidPhase={isVoidPhase} />
+    <div
+      className={`relative min-h-screen flex flex-col transition-colors duration-300 selection:bg-indigo-500 selection:text-white ${
+        isWhite ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'
+      }`}
+    >
+      {/* Dynamic Ambient Background (Canvas Particle System) */}
+      <VoidBackground themeMode={themeMode} />
 
       {/* Main Top Header */}
-      <header className="relative z-10 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b border-indigo-500/20 bg-slate-950/90 backdrop-blur-md pt-safe sm:pt-3">
+      <header
+        className={`relative z-10 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b backdrop-blur-md pt-safe sm:pt-3 transition-colors ${
+          isWhite
+            ? 'bg-white/90 border-slate-200 text-slate-800 shadow-sm'
+            : 'bg-slate-950/90 border-indigo-500/20 text-slate-100'
+        }`}
+      >
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 border border-indigo-400/40 shrink-0">
             <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-xs sm:text-base font-bold font-title tracking-wider text-white flex items-center gap-1.5 sm:gap-2">
+            <h1
+              className={`text-xs sm:text-base font-bold font-title tracking-wider flex items-center gap-1.5 sm:gap-2 ${
+                isWhite ? 'text-slate-900' : 'text-white'
+              }`}
+            >
               <span>THE SYSTEM</span>
-              <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <span
+                className={`text-[9px] sm:text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                  isWhite
+                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                }`}
+              >
                 GM RPG
               </span>
             </h1>
-            <p className="text-[10px] text-slate-400 font-mono hidden sm:block">
+            <p
+              className={`text-[10px] font-mono hidden sm:block ${
+                isWhite ? 'text-slate-500' : 'text-slate-400'
+              }`}
+            >
               Game Master และผู้ควบคุมระบบประจำการเกิดใหม่
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Background Theme Switcher: Black / White */}
+          <button
+            onClick={toggleTheme}
+            title={isWhite ? 'เปลี่ยนเป็นธีมมืด (พื้นหลังสีดำ)' : 'เปลี่ยนเป็นธีมสว่าง (พื้นหลังสีขาว)'}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium transition flex items-center gap-1.5 shadow-sm min-h-[34px] touch-manipulation ${
+              isWhite
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                : 'bg-slate-900 active:bg-slate-800 border-slate-700 text-amber-400 hover:text-white'
+            }`}
+          >
+            {isWhite ? (
+              <Moon className="w-3.5 h-3.5 text-slate-700" />
+            ) : (
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+            )}
+            <span className="text-[11px] sm:text-xs">
+              {isWhite ? 'พื้นหลังดำ' : 'พื้นหลังขาว'}
+            </span>
+          </button>
+
+          {/* Archives Modal Trigger */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsArchivesOpen(true);
+            }}
+            title="คลังประวัติแชทและการผจญภัย"
+            className={`relative px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium transition flex items-center gap-1.5 shadow-sm min-h-[34px] touch-manipulation ${
+              isWhite
+                ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700'
+                : 'bg-slate-900 active:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+          >
+            <Archive className="w-3.5 h-3.5 text-indigo-500" />
+            <span className="text-[11px] sm:text-xs hidden xs:inline">คลังแชท</span>
+            {archives.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+                {archives.length}
+              </span>
+            )}
+          </button>
+
           {/* Reincarnation Protocol Trigger */}
           <button
             onClick={() => {
@@ -459,16 +675,27 @@ export default function App() {
               setIsHelpOpen(true);
             }}
             title="คู่มือและกฎของระบบ"
-            className="p-1.5 sm:p-2 rounded-lg bg-slate-900 active:bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition min-w-[34px] min-h-[34px] flex items-center justify-center touch-manipulation"
+            className={`p-1.5 sm:p-2 rounded-lg border transition min-w-[34px] min-h-[34px] flex items-center justify-center touch-manipulation ${
+              isWhite
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-600'
+                : 'bg-slate-900 active:bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+            }`}
           >
             <HelpCircle className="w-4 h-4" />
           </button>
 
-          {/* Reset Game */}
+          {/* Reset Game Modal Trigger */}
           <button
-            onClick={handleReset}
-            title="เริ่มเกมใหม่ทั้งหมด"
-            className="p-1.5 sm:p-2 rounded-lg bg-slate-900 active:bg-slate-800 border border-slate-700 text-slate-400 hover:text-rose-400 transition min-w-[34px] min-h-[34px] flex items-center justify-center touch-manipulation"
+            onClick={() => {
+              sound.playClick();
+              setIsResetModalOpen(true);
+            }}
+            title="รีเซ็ตและเริ่มเรื่องใหม่"
+            className={`p-1.5 sm:p-2 rounded-lg border transition min-w-[34px] min-h-[34px] flex items-center justify-center touch-manipulation ${
+              isWhite
+                ? 'bg-slate-100 hover:bg-rose-50 border-slate-300 text-slate-600 hover:text-rose-600'
+                : 'bg-slate-900 active:bg-slate-800 border-slate-700 text-slate-400 hover:text-rose-400'
+            }`}
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -483,6 +710,7 @@ export default function App() {
           onToggle={() => setIsHUDOpen(!isHUDOpen)}
           onUseSkill={(skill) => handleSendMessage(`[ใช้สกิล: ${skill}]`)}
           onUseItem={(item) => handleSendMessage(`[ใช้งานไอเทม: ${item}]`)}
+          themeMode={themeMode}
         />
       </div>
 
@@ -492,6 +720,7 @@ export default function App() {
           messages={messages}
           isStreaming={isStreaming}
           onSelectAction={handleSelectAction}
+          themeMode={themeMode}
         />
       </main>
 
@@ -511,7 +740,11 @@ export default function App() {
           onSave={handleSave}
           onLoad={handleLoad}
           onExport={handleExport}
-          onReset={handleReset}
+          onReset={() => setIsResetModalOpen(true)}
+          onOpenArchives={() => setIsArchivesOpen(true)}
+          onToggleTheme={toggleTheme}
+          archivesCount={archives.length}
+          themeMode={themeMode}
           disabled={isStreaming}
           canUndo={messages.length > 2}
         />
@@ -531,28 +764,86 @@ export default function App() {
         onSubmitRoll={handleDiceSubmit}
       />
 
+      {/* Reset Game Confirmation Modal */}
+      <ResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onArchiveAndReset={handleArchiveAndReset}
+        onDeleteAndReset={handleDeleteAndReset}
+        characterName={characterState.name}
+        messageCount={messages.length}
+        themeMode={themeMode}
+      />
+
+      {/* Chronicle Archives Modal */}
+      <ArchivesModal
+        isOpen={isArchivesOpen}
+        onClose={() => setIsArchivesOpen(false)}
+        archives={archives}
+        onLoadArchive={handleLoadArchive}
+        onDeleteArchive={handleDeleteArchive}
+        onClearAllArchives={handleClearAllArchives}
+        onExportArchive={handleExportArchive}
+        onArchiveCurrentChat={() => handleArchiveCurrentChat(true)}
+        themeMode={themeMode}
+      />
+
       {/* Help / GM System Rules Modal */}
       {isHelpOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-xl bg-slate-900 border border-indigo-500/40 rounded-2xl shadow-2xl p-6 text-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-indigo-400">
+          <div
+            className={`w-full max-w-xl rounded-2xl shadow-2xl p-6 space-y-4 border transition-colors ${
+              isWhite
+                ? 'bg-white border-slate-300 text-slate-800'
+                : 'bg-slate-900 border-indigo-500/40 text-slate-200'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-between border-b pb-3 ${
+                isWhite ? 'border-slate-200' : 'border-slate-800'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-indigo-500">
                 <BookOpen className="w-5 h-5" />
-                <h3 className="font-bold font-title text-white text-base">
+                <h3
+                  className={`font-bold font-title text-base ${
+                    isWhite ? 'text-slate-900' : 'text-white'
+                  }`}
+                >
                   คู่มือ &amp; กฎเกณฑ์ของ Game Master (The System Rules)
                 </h3>
               </div>
               <button
                 onClick={() => setIsHelpOpen(false)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                className={`p-1 rounded-lg ${
+                  isWhite
+                    ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs leading-relaxed text-slate-300">
-              <div className="p-3 bg-indigo-950/40 rounded-xl border border-indigo-500/20">
-                <h4 className="font-bold text-indigo-300 mb-1">🎮 ระบบการเล่น (Gameplay System):</h4>
+            <div
+              className={`space-y-3 text-xs leading-relaxed ${
+                isWhite ? 'text-slate-600' : 'text-slate-300'
+              }`}
+            >
+              <div
+                className={`p-3 rounded-xl border ${
+                  isWhite
+                    ? 'bg-indigo-50/70 border-indigo-200'
+                    : 'bg-indigo-950/40 border-indigo-500/20'
+                }`}
+              >
+                <h4
+                  className={`font-bold mb-1 ${
+                    isWhite ? 'text-indigo-800' : 'text-indigo-300'
+                  }`}
+                >
+                  🎮 ระบบการเล่น (Gameplay System):
+                </h4>
                 <p>
                   เกม RPG สไตล์ Text-based ที่ตอบสนองต่อทุกการกระทำของคุณอย่างอิสระ ไม่มีทางเลือกตายตัว
                   คุณสามารถพิมพ์คำพูด การกระทำ หรือแนวทางการตัดสินใจได้อย่างอิสระ GM จะบรรยายสภาพแวดล้อม
@@ -560,25 +851,55 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                <h4 className="font-bold text-emerald-300 mb-1">💬 คีย์ลัดการเล่น (RP Syntax):</h4>
-                <ul className="list-disc list-inside space-y-1 text-slate-300">
+              <div
+                className={`p-3 rounded-xl border ${
+                  isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+                }`}
+              >
+                <h4
+                  className={`font-bold mb-1 ${
+                    isWhite ? 'text-emerald-700' : 'text-emerald-300'
+                  }`}
+                >
+                  💬 คีย์ลัดการเล่น (RP Syntax):
+                </h4>
+                <ul className="list-disc list-inside space-y-1">
                   <li><strong>"คำพูด":</strong> ใช้เครื่องหมายอัญประกาศเมื่อต้องการให้ตัวละครพูดกับ NPC</li>
                   <li><strong>*การกระทำ*:</strong> ใช้เครื่องหมายดอกจันเพื่อบรรยายท่วงท่า เช่น *ชักดาบฟาดใส่ลำคอ*</li>
                   <li><strong>[ตรวจสอบระบบ]:</strong> เพื่อดูข้อมูล ค่าพลัง หรือวิเคราะห์สิ่งของรอบตัว</li>
                 </ul>
               </div>
 
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                <h4 className="font-bold text-purple-300 mb-1">🎲 ลูกเต๋าแห่งชะตา (Fate Dice):</h4>
+              <div
+                className={`p-3 rounded-xl border ${
+                  isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+                }`}
+              >
+                <h4
+                  className={`font-bold mb-1 ${
+                    isWhite ? 'text-purple-700' : 'text-purple-300'
+                  }`}
+                >
+                  🎲 ลูกเต๋าแห่งชะตา (Fate Dice):
+                </h4>
                 <p>
-                  คุณสามารถกดปุ่ม "ทอยเต๋าชะตา" เพื่อสุ่มค่า D20 / D100 ในการกระทำที่ท้าทาย
+                  คุณสามารถกดปุ่ม "ทอยเต๋า" เพื่อสุ่มค่า D20 / D100 ในการกระทำที่ท้าทาย
                   (เช่น ลอบเร้น, โจมตีจุดตาย, เจรจา) ผลลัพธ์จะถูกนำไปคิดในเนื้อเรื่องอย่างสมจริง
                 </p>
               </div>
 
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                <h4 className="font-bold text-amber-300 mb-1">🔥 มิติของเนื้อหา (Mature &amp; Combat):</h4>
+              <div
+                className={`p-3 rounded-xl border ${
+                  isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+                }`}
+              >
+                <h4
+                  className={`font-bold mb-1 ${
+                    isWhite ? 'text-amber-700' : 'text-amber-300'
+                  }`}
+                >
+                  🔥 มิติของเนื้อหา (Mature &amp; Combat):
+                </h4>
                 <p>
                   ฉากต่อสู้ดิบ ดาร์ก เลือดสาดตามสถานการณ์ และสำหรับฉากความสัมพันธ์ลึกซึ้ง
                   ระบบจะปรับระดับความละเอียดตามความประสงค์ของผู้เล่น หากพิมพ์ย่อจะบรรยายมู้ดแล้วตัดภาพ (Fade to black)

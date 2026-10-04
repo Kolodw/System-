@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
+import { ThemeMode } from '../types';
 
 interface VoidBackgroundProps {
-  isVoidPhase: boolean;
+  themeMode: ThemeMode;
 }
 
-export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) => {
+export const VoidBackground: React.FC<VoidBackgroundProps> = ({ themeMode }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isWhite = themeMode === 'white';
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -26,11 +28,11 @@ export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) =
     window.addEventListener('resize', handleResize);
 
     // Particle system
-    const particleCount = isVoidPhase ? 45 : 70;
+    const particleCount = isWhite ? 50 : 70;
     const particles = Array.from({ length: particleCount }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      radius: Math.random() * (isVoidPhase ? 3.5 : 2.2) + 0.8,
+      radius: Math.random() * (isWhite ? 3.0 : 2.2) + 0.8,
       speedX: (Math.random() - 0.5) * 0.4,
       speedY: (Math.random() - 0.5) * 0.4,
       alpha: Math.random() * 0.6 + 0.2,
@@ -44,13 +46,13 @@ export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) =
       const bgGrad = ctx.createRadialGradient(
         width / 2,
         height / 2,
-        100,
+        80,
         width / 2,
         height / 2,
         Math.max(width, height) / 1.1
       );
 
-      if (isVoidPhase) {
+      if (isWhite) {
         // Ethereal white void
         bgGrad.addColorStop(0, '#ffffff');
         bgGrad.addColorStop(0.5, '#f8fafc');
@@ -65,8 +67,8 @@ export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) =
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Draw faint grid or system coordinates in dark mode
-      if (!isVoidPhase) {
+      // Draw faint grid or coordinates in dark mode, or faint sacred geometry in white mode
+      if (!isWhite) {
         ctx.strokeStyle = 'rgba(56, 189, 248, 0.03)';
         ctx.lineWidth = 1;
         const gridSize = 60;
@@ -80,6 +82,16 @@ export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) =
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+        ctx.lineWidth = 1;
+        const gridSize = 80;
+        for (let x = 0; x < width; x += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
           ctx.stroke();
         }
       }
@@ -102,8 +114,8 @@ export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) =
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
 
-        if (isVoidPhase) {
-          ctx.fillStyle = `rgba(100, 116, 139, ${p.alpha * 0.4})`;
+        if (isWhite) {
+          ctx.fillStyle = `rgba(100, 116, 139, ${p.alpha * 0.35})`;
         } else {
           ctx.fillStyle = `rgba(56, 189, 248, ${p.alpha * 0.65})`;
         }
@@ -119,7 +131,7 @@ export const VoidBackground: React.FC<VoidBackgroundProps> = ({ isVoidPhase }) =
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isVoidPhase]);
+  }, [isWhite]);
 
   return (
     <canvas

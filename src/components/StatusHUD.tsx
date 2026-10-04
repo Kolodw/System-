@@ -1,5 +1,5 @@
 import React from 'react';
-import { CharacterState } from '../types';
+import { CharacterState, ThemeMode } from '../types';
 import {
   Shield,
   Heart,
@@ -22,6 +22,7 @@ interface StatusHUDProps {
   onToggle: () => void;
   onUseSkill?: (skillName: string) => void;
   onUseItem?: (itemName: string) => void;
+  themeMode?: ThemeMode;
 }
 
 export const StatusHUD: React.FC<StatusHUDProps> = ({
@@ -30,7 +31,9 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
   onToggle,
   onUseSkill,
   onUseItem,
+  themeMode = 'dark',
 }) => {
+  const isWhite = themeMode === 'white';
   const hpPercent = Math.max(0, Math.min(100, (state.hp / (state.maxHp || 100)) * 100));
   const mpPercent = Math.max(0, Math.min(100, (state.mp / (state.maxMp || 50)) * 100));
 
@@ -40,32 +43,42 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
         return {
           label: 'DEADLY',
           fullLabel: 'อันตรายถึงตาย (DEADLY)',
-          className: 'bg-rose-950/80 text-rose-300 border-rose-500/50 animate-pulse',
+          className: isWhite
+            ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse font-bold'
+            : 'bg-rose-950/80 text-rose-300 border-rose-500/50 animate-pulse',
         };
       case 'High':
         return {
           label: 'HIGH',
           fullLabel: 'อันตรายสูง (HIGH)',
-          className: 'bg-orange-950/80 text-orange-300 border-orange-500/50',
+          className: isWhite
+            ? 'bg-orange-100 text-orange-800 border-orange-300 font-bold'
+            : 'bg-orange-950/80 text-orange-300 border-orange-500/50',
         };
       case 'Medium':
         return {
           label: 'MED',
           fullLabel: 'ระวังภัย (MEDIUM)',
-          className: 'bg-amber-950/80 text-amber-300 border-amber-500/50',
+          className: isWhite
+            ? 'bg-amber-100 text-amber-800 border-amber-300'
+            : 'bg-amber-950/80 text-amber-300 border-amber-500/50',
         };
       case 'Low':
         return {
           label: 'LOW',
           fullLabel: 'ระวังตัว (LOW)',
-          className: 'bg-sky-950/80 text-sky-300 border-sky-500/50',
+          className: isWhite
+            ? 'bg-sky-100 text-sky-800 border-sky-300'
+            : 'bg-sky-950/80 text-sky-300 border-sky-500/50',
         };
       case 'Safe':
       default:
         return {
           label: 'SAFE',
           fullLabel: 'ปลอดภัย (SAFE)',
-          className: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50',
+          className: isWhite
+            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+            : 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50',
         };
     }
   };
@@ -75,7 +88,13 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
   return (
     <div className="w-full">
       {/* Mini Bar Header (Optimized for Mobile & Desktop) */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-slate-900/95 border-b border-indigo-500/20 backdrop-blur-md">
+      <div
+        className={`flex items-center justify-between px-3 sm:px-4 py-2 border-b backdrop-blur-md transition-colors ${
+          isWhite
+            ? 'bg-white/95 border-slate-200 text-slate-800'
+            : 'bg-slate-900/95 border-indigo-500/20 text-slate-100'
+        }`}
+      >
         {/* Left: Player Identity */}
         <div
           onClick={() => {
@@ -84,17 +103,31 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
           }}
           className="flex items-center gap-2 cursor-pointer select-none overflow-hidden max-w-[55%] sm:max-w-[40%]"
         >
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping flex-shrink-0" />
           <div className="flex flex-col truncate">
             <div className="flex items-center gap-1.5 truncate">
-              <span className="text-xs font-bold text-white truncate">
+              <span
+                className={`text-xs font-bold truncate ${
+                  isWhite ? 'text-slate-900' : 'text-white'
+                }`}
+              >
                 {state.name || 'ดวงวิญญาณ'}
               </span>
-              <span className="text-[10px] text-indigo-300 font-mono px-1 py-0.2 rounded bg-indigo-500/20 border border-indigo-500/30 flex-shrink-0">
+              <span
+                className={`text-[10px] font-mono px-1 py-0.2 rounded border flex-shrink-0 ${
+                  isWhite
+                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                }`}
+              >
                 Lv.{state.level || 1}
               </span>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono truncate">
+            <span
+              className={`text-[10px] font-mono truncate ${
+                isWhite ? 'text-slate-500' : 'text-slate-400'
+              }`}
+            >
               {state.title || 'ผู้จุติใหม่'}
             </span>
           </div>
@@ -108,32 +141,52 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
               sound.playClick();
               onToggle();
             }}
-            className="flex items-center gap-2 cursor-pointer bg-slate-950/60 px-2 py-1 rounded-lg border border-slate-800"
+            className={`flex items-center gap-2 cursor-pointer px-2 py-1 rounded-lg border transition ${
+              isWhite
+                ? 'bg-slate-100 border-slate-300'
+                : 'bg-slate-950/60 border-slate-800'
+            }`}
           >
             {/* HP */}
             <div className="flex items-center gap-1">
-              <Heart className="w-3 h-3 text-rose-400 fill-rose-500/20" />
-              <div className="w-12 sm:w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <Heart className="w-3 h-3 text-rose-500 fill-rose-500/20" />
+              <div
+                className={`w-12 sm:w-16 h-1.5 rounded-full overflow-hidden ${
+                  isWhite ? 'bg-slate-200' : 'bg-slate-800'
+                }`}
+              >
                 <div
                   className="h-full bg-gradient-to-r from-rose-600 to-rose-400 transition-all duration-300"
                   style={{ width: `${hpPercent}%` }}
                 />
               </div>
-              <span className="text-[10px] font-mono text-rose-300 hidden sm:inline">
+              <span
+                className={`text-[10px] font-mono hidden sm:inline ${
+                  isWhite ? 'text-rose-700' : 'text-rose-300'
+                }`}
+              >
                 {state.hp}
               </span>
             </div>
 
             {/* MP */}
             <div className="flex items-center gap-1">
-              <Zap className="w-3 h-3 text-sky-400 fill-sky-500/20" />
-              <div className="w-12 sm:w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <Zap className="w-3 h-3 text-sky-500 fill-sky-500/20" />
+              <div
+                className={`w-12 sm:w-16 h-1.5 rounded-full overflow-hidden ${
+                  isWhite ? 'bg-slate-200' : 'bg-slate-800'
+                }`}
+              >
                 <div
                   className="h-full bg-gradient-to-r from-sky-600 to-cyan-400 transition-all duration-300"
                   style={{ width: `${mpPercent}%` }}
                 />
               </div>
-              <span className="text-[10px] font-mono text-sky-300 hidden sm:inline">
+              <span
+                className={`text-[10px] font-mono hidden sm:inline ${
+                  isWhite ? 'text-sky-700' : 'text-sky-300'
+                }`}
+              >
                 {state.mp}
               </span>
             </div>
@@ -153,7 +206,11 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
               sound.playClick();
               onToggle();
             }}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-mono font-medium rounded-lg bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-200 transition min-h-[32px] touch-manipulation"
+            className={`flex items-center gap-1 px-2 py-1 text-xs font-mono font-medium rounded-lg border transition min-h-[32px] touch-manipulation ${
+              isWhite
+                ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700'
+                : 'bg-indigo-950/70 hover:bg-indigo-900 border-indigo-500/30 text-indigo-200'
+            }`}
           >
             <span className="hidden sm:inline">{isOpen ? 'ซ่อน' : 'สถานะ'}</span>
             <span className="sm:hidden text-[11px]">{isOpen ? 'ปิด' : 'สถานะ'}</span>
@@ -167,25 +224,49 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
         <>
           {/* Mobile Bottom Sheet Drawer (md:hidden) */}
           <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/70 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-slate-950 border-t border-indigo-500/40 rounded-t-3xl max-h-[82vh] flex flex-col shadow-2xl overflow-hidden animate-slideUp">
+            <div
+              className={`border-t rounded-t-3xl max-h-[82vh] flex flex-col shadow-2xl overflow-hidden animate-slideUp transition-colors ${
+                isWhite
+                  ? 'bg-white border-slate-300 text-slate-800'
+                  : 'bg-slate-950 border-indigo-500/40 text-slate-100'
+              }`}
+            >
               {/* Drawer Handle & Header */}
-              <div className="p-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+              <div
+                className={`p-3 border-b flex items-center justify-between ${
+                  isWhite
+                    ? 'bg-slate-100/90 border-slate-200'
+                    : 'bg-slate-900/90 border-slate-800'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-1 bg-slate-600 rounded-full mx-auto" />
-                  <span className="text-xs font-bold text-indigo-300 font-mono">
+                  <div
+                    className={`w-8 h-1 rounded-full mx-auto ${
+                      isWhite ? 'bg-slate-400' : 'bg-slate-600'
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-bold font-mono ${
+                      isWhite ? 'text-indigo-700' : 'text-indigo-300'
+                    }`}
+                  >
                     [หน้าต่างสถานะตัวละคร]
                   </span>
                 </div>
                 <button
                   onClick={onToggle}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                  className={`p-1 rounded-lg ${
+                    isWhite
+                      ? 'text-slate-500 hover:text-slate-800'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Drawer Content */}
-              <div className="p-4 overflow-y-auto space-y-3.5 text-xs text-slate-200 pb-safe">
+              <div className="p-4 overflow-y-auto space-y-3.5 text-xs pb-safe">
                 {/* Stats & Identity */}
                 <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2.5">
                   <div className="flex items-center justify-between">

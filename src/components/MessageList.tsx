@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage, ThemeMode } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { Loader2, Sparkles } from 'lucide-react';
 
@@ -7,13 +7,16 @@ interface MessageListProps {
   messages: ChatMessage[];
   isStreaming: boolean;
   onSelectAction: (actionText: string) => void;
+  themeMode?: ThemeMode;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   isStreaming,
   onSelectAction,
+  themeMode = 'dark',
 }) => {
+  const isWhite = themeMode === 'white';
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -28,13 +31,20 @@ export const MessageList: React.FC<MessageListProps> = ({
           message={msg}
           isLatest={index === messages.length - 1}
           onSelectAction={onSelectAction}
+          themeMode={themeMode}
         />
       ))}
 
       {isStreaming && (
-        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900/60 border border-indigo-500/20 text-xs font-mono text-indigo-300 w-fit animate-pulse">
-          <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-          <span>Game Master & The System กำลังเรียบเรียงเหตุการณ์...</span>
+        <div
+          className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-mono w-fit animate-pulse ${
+            isWhite
+              ? 'bg-white/95 border-indigo-200 text-indigo-700 shadow-sm'
+              : 'bg-slate-900/60 border-indigo-500/20 text-indigo-300'
+          }`}
+        >
+          <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+          <span>Game Master &amp; The System กำลังเรียบเรียงเหตุการณ์...</span>
         </div>
       )}
 
