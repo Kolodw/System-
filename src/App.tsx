@@ -111,9 +111,7 @@ export default function App() {
   });
 
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isHUDOpen, setIsHUDOpen] = useState(() => {
-    return typeof window !== 'undefined' ? window.innerWidth >= 768 : false;
-  });
+  const [isHUDOpen, setIsHUDOpen] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [isDiceOpen, setIsDiceOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -702,17 +700,15 @@ export default function App() {
         </div>
       </header>
 
-      {/* System Status HUD Bar */}
-      <div className="relative z-10">
-        <StatusHUD
-          state={characterState}
-          isOpen={isHUDOpen}
-          onToggle={() => setIsHUDOpen(!isHUDOpen)}
-          onUseSkill={(skill) => handleSendMessage(`[ใช้สกิล: ${skill}]`)}
-          onUseItem={(item) => handleSendMessage(`[ใช้งานไอเทม: ${item}]`)}
-          themeMode={themeMode}
-        />
-      </div>
+      {/* System Status HUD Bar & Modal */}
+      <StatusHUD
+        state={characterState}
+        isOpen={isHUDOpen}
+        onToggle={() => setIsHUDOpen(!isHUDOpen)}
+        onUseSkill={(skill) => handleSendMessage(`[ใช้สกิล: ${skill}]`)}
+        onUseItem={(item) => handleSendMessage(`[ใช้งานไอเทม: ${item}]`)}
+        themeMode={themeMode}
+      />
 
       {/* Narrative Message Scroll Area */}
       <main className="relative z-10 flex-1 flex flex-col max-w-5xl w-full mx-auto overflow-hidden">
