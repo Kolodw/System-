@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CharacterState, ThemeMode } from '../types';
 import {
   Shield,
@@ -9,12 +9,13 @@ import {
   Award,
   Package,
   Sparkles,
-  ChevronRight,
   X,
   User,
   Activity,
   Compass,
   FileText,
+  ArrowRight,
+  Layers,
 } from 'lucide-react';
 import { sound } from '../utils/sound';
 
@@ -36,6 +37,8 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
   themeMode = 'dark',
 }) => {
   const isWhite = themeMode === 'white';
+  const [activeTab, setActiveTab] = useState<'profile' | 'skills' | 'inventory'>('profile');
+
   const hpPercent = Math.max(0, Math.min(100, (state.hp / (state.maxHp || 100)) * 100));
   const mpPercent = Math.max(0, Math.min(100, (state.mp / (state.maxMp || 50)) * 100));
 
@@ -87,226 +90,162 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
 
   const danger = getDangerBadge(state.dangerLevel);
 
+  if (!isOpen) return null;
+
   return (
-    <>
-      {/* Mini Bar Header (Always visible at top, clean and compact) */}
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          sound.playClose();
+          onToggle();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-2xl animate-fadeIn"
+      style={{
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      }}
+    >
       <div
-        className={`w-full flex items-center justify-between px-3 sm:px-6 py-2 border-b backdrop-blur-md transition-colors ${
+        className={`w-full max-w-2xl rounded-2xl border shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transition-all animate-scaleIn select-card-glow ${
           isWhite
-            ? 'bg-white/95 border-slate-200 text-slate-800'
-            : 'bg-slate-900/95 border-indigo-500/20 text-slate-100'
+            ? 'bg-white/95 border-slate-300 text-slate-800 shadow-slate-300/50'
+            : 'bg-slate-950/95 border-indigo-500/40 text-slate-100 shadow-indigo-950/80 ring-1 ring-indigo-500/30'
         }`}
       >
-        {/* Left: Player Identity */}
+        {/* Holographic Header */}
         <div
-          onClick={() => {
-            sound.playClick();
-            onToggle();
-          }}
-          className="flex items-center gap-2 cursor-pointer select-none overflow-hidden max-w-[50%] sm:max-w-[40%] group"
+          className={`flex items-center justify-between px-5 py-4 border-b ${
+            isWhite
+              ? 'bg-slate-50/90 border-slate-200'
+              : 'bg-slate-900/90 border-indigo-500/30'
+          }`}
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0 group-hover:scale-125 transition" />
-          <div className="flex flex-col truncate">
-            <div className="flex items-center gap-1.5 truncate">
-              <span
-                className={`text-xs sm:text-sm font-bold truncate group-hover:text-indigo-400 transition ${
-                  isWhite ? 'text-slate-900' : 'text-white'
-                }`}
-              >
-                {state.name || 'ดวงวิญญาณ'}
-              </span>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border flex-shrink-0 ${
-                  isWhite
-                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                }`}
-              >
-                Lv.{state.level || 1}
-              </span>
-            </div>
-            <span
-              className={`text-[10px] font-mono truncate ${
-                isWhite ? 'text-slate-500' : 'text-slate-400'
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2 rounded-xl border shrink-0 ${
+                isWhite
+                  ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
+                  : 'bg-indigo-950/80 border-indigo-500/40 text-indigo-400'
               }`}
             >
-              {state.title || 'ผู้จุติใหม่'}
-            </span>
+              <Shield className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3
+                  className={`font-bold font-title tracking-wider text-sm sm:text-base ${
+                    isWhite ? 'text-slate-900' : 'text-white'
+                  }`}
+                >
+                  SYSTEM STATUS WINDOW
+                </h3>
+                <span
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded border font-bold ${
+                    isWhite
+                      ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                  }`}
+                >
+                  Lv.{state.level || 1}
+                </span>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${danger.className}`}>
+                  {danger.label}
+                </span>
+              </div>
+              <p
+                className={`text-[11px] font-mono ${
+                  isWhite ? 'text-slate-500' : 'text-slate-400'
+                }`}
+              >
+                หน้าต่างสถานะและสถิติข้อมูลผู้จุติใหม่แห่ง The System
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Center / Right: Quick Gauges & Open Status Button */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick HP & MP gauges */}
-          <div
+          <button
             onClick={() => {
-              sound.playClick();
+              sound.playClose();
               onToggle();
             }}
-            className={`flex items-center gap-2.5 cursor-pointer px-2.5 py-1 rounded-xl border transition hover:scale-[1.02] active:scale-[0.98] ${
+            className={`p-2 rounded-xl transition min-w-[36px] min-h-[36px] flex items-center justify-center ${
               isWhite
-                ? 'bg-slate-100 border-slate-300 hover:bg-slate-200'
-                : 'bg-slate-950/70 border-slate-800 hover:border-indigo-500/40'
+                ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80 active:scale-95'
             }`}
           >
-            {/* HP */}
-            <div className="flex items-center gap-1">
-              <Heart className="w-3 h-3 text-rose-500 fill-rose-500/20" />
-              <div
-                className={`w-12 sm:w-16 h-2 rounded-full overflow-hidden ${
-                  isWhite ? 'bg-slate-200' : 'bg-slate-800'
-                }`}
-              >
-                <div
-                  className="h-full bg-gradient-to-r from-rose-600 to-rose-400 transition-all duration-300"
-                  style={{ width: `${hpPercent}%` }}
-                />
-              </div>
-              <span
-                className={`text-[10px] font-mono hidden sm:inline ${
-                  isWhite ? 'text-rose-700' : 'text-rose-300'
-                }`}
-              >
-                {state.hp}
-              </span>
-            </div>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-            {/* MP */}
-            <div className="flex items-center gap-1">
-              <Zap className="w-3 h-3 text-sky-500 fill-sky-500/20" />
-              <div
-                className={`w-12 sm:w-16 h-2 rounded-full overflow-hidden ${
-                  isWhite ? 'bg-slate-200' : 'bg-slate-800'
-                }`}
-              >
-                <div
-                  className="h-full bg-gradient-to-r from-sky-600 to-cyan-400 transition-all duration-300"
-                  style={{ width: `${mpPercent}%` }}
-                />
-              </div>
-              <span
-                className={`text-[10px] font-mono hidden sm:inline ${
-                  isWhite ? 'text-sky-700' : 'text-sky-300'
-                }`}
-              >
-                {state.mp}
-              </span>
-            </div>
-          </div>
-
-          {/* Danger Threat Badge */}
-          <span
-            className={`text-[9px] sm:text-[11px] font-mono px-1.5 sm:px-2 py-0.5 rounded border ${danger.className}`}
-          >
-            <span className="sm:hidden">{danger.label}</span>
-            <span className="hidden sm:inline">{danger.fullLabel}</span>
-          </span>
-
-          {/* Open Full Status Window Button */}
+        {/* Tab Navigation */}
+        <div
+          className={`flex border-b px-5 pt-2 gap-2 text-xs font-mono ${
+            isWhite
+              ? 'bg-slate-100/60 border-slate-200'
+              : 'bg-slate-900/40 border-indigo-500/20'
+          }`}
+        >
           <button
             onClick={() => {
               sound.playClick();
-              onToggle();
+              setActiveTab('profile');
             }}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-mono font-medium rounded-xl border transition shadow-sm min-h-[32px] touch-manipulation ${
-              isWhite
-                ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700'
-                : 'bg-indigo-950/80 hover:bg-indigo-900 border-indigo-500/40 text-indigo-200 hover:text-white'
+            className={`pb-2 px-3 border-b-2 font-medium transition flex items-center gap-1.5 ${
+              activeTab === 'profile'
+                ? isWhite
+                  ? 'border-indigo-600 text-indigo-700 font-bold'
+                  : 'border-indigo-500 text-white font-bold'
+                : 'border-transparent opacity-60 hover:opacity-100'
             }`}
           >
-            <Activity className="w-3.5 h-3.5 text-indigo-500" />
-            <span>ดูสถานะ</span>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+            <User className="w-3.5 h-3.5" />
+            <span>ข้อมูล & พลังกาย</span>
+          </button>
+
+          <button
+            onClick={() => {
+              sound.playClick();
+              setActiveTab('skills');
+            }}
+            className={`pb-2 px-3 border-b-2 font-medium transition flex items-center gap-1.5 ${
+              activeTab === 'skills'
+                ? isWhite
+                  ? 'border-purple-600 text-purple-700 font-bold'
+                  : 'border-purple-500 text-purple-300 font-bold'
+                : 'border-transparent opacity-60 hover:opacity-100'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>สกิลพิเศษ ({state.skills?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              sound.playClick();
+              setActiveTab('inventory');
+            }}
+            className={`pb-2 px-3 border-b-2 font-medium transition flex items-center gap-1.5 ${
+              activeTab === 'inventory'
+                ? isWhite
+                  ? 'border-emerald-600 text-emerald-700 font-bold'
+                  : 'border-emerald-500 text-emerald-300 font-bold'
+                : 'border-transparent opacity-60 hover:opacity-100'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>ช่องเก็บของ ({state.inventory?.length || 0})</span>
           </button>
         </div>
-      </div>
 
-      {/* FULL-SCREEN BLURRED MODAL FOR STATUS (Prevents chat overlap, blurs entire background) */}
-      {isOpen && (
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              sound.playClick();
-              onToggle();
-            }
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fadeIn"
-        >
-          <div
-            className={`w-full max-w-3xl rounded-2xl border shadow-2xl flex flex-col max-h-[88vh] overflow-hidden transition-all animate-scaleIn ${
-              isWhite
-                ? 'bg-white border-slate-300 text-slate-800'
-                : 'bg-slate-950 border-indigo-500/50 text-slate-100 shadow-indigo-950/50'
-            }`}
-          >
-            {/* Holographic Header */}
-            <div
-              className={`flex items-center justify-between px-5 py-3.5 border-b ${
-                isWhite
-                  ? 'bg-slate-50 border-slate-200'
-                  : 'bg-slate-900/90 border-indigo-500/30'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 text-indigo-500">
-                <div
-                  className={`p-1.5 rounded-lg border ${
-                    isWhite
-                      ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
-                      : 'bg-indigo-950 border-indigo-500/40 text-indigo-400'
-                  }`}
-                >
-                  <Shield className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3
-                    className={`font-bold font-title tracking-wider text-sm sm:text-base flex items-center gap-2 ${
-                      isWhite ? 'text-slate-900' : 'text-white'
-                    }`}
-                  >
-                    <span>[ หน้าต่างสถานะระบบ - System Status ]</span>
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                        isWhite
-                          ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                          : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                      }`}
-                    >
-                      Lv.{state.level || 1}
-                    </span>
-                  </h3>
-                  <p
-                    className={`text-[11px] font-mono ${
-                      isWhite ? 'text-slate-500' : 'text-slate-400'
-                    }`}
-                  >
-                    ข้อมูลบันทึกสถิติและพลังแห่งชะตากรรม
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  onToggle();
-                }}
-                className={`p-1.5 rounded-lg transition min-w-[32px] min-h-[32px] flex items-center justify-center touch-manipulation ${
-                  isWhite
-                    ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-                    : 'text-slate-400 hover:text-white active:bg-slate-800'
-                }`}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Scrollable Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 text-xs">
-              {/* Row 1: Identity Profile Card */}
+        {/* Scrollable Body */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 text-xs">
+          {activeTab === 'profile' && (
+            <>
+              {/* Profile Card */}
               <div
                 className={`p-4 rounded-xl border space-y-3 ${
-                  isWhite
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-900/80 border-slate-800'
+                  isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -371,12 +310,10 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
                 )}
               </div>
 
-              {/* Row 2: Vitals Gauges (HP & MP) */}
+              {/* Vitals Gauges (HP & MP) */}
               <div
                 className={`p-4 rounded-xl border space-y-3 font-mono ${
-                  isWhite
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-900/80 border-slate-800'
+                  isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
                 }`}
               >
                 <div className="flex items-center justify-between text-xs font-semibold">
@@ -434,12 +371,10 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
                 </div>
               </div>
 
-              {/* Row 3: Location & Objective */}
+              {/* Location & Objective */}
               <div
                 className={`p-4 rounded-xl border space-y-2.5 ${
-                  isWhite
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-900/80 border-slate-800'
+                  isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
                 }`}
               >
                 <div className="flex items-center gap-1.5 text-amber-600 font-semibold text-xs">
@@ -472,139 +407,141 @@ export const StatusHUD: React.FC<StatusHUDProps> = ({
                   {state.objective || 'ส่งมอบข้อมูลเพื่อจุติสู่โลกใบใหม่'}
                 </div>
               </div>
+            </>
+          )}
 
-              {/* Row 4: Skills & Abilities Grid */}
-              <div
-                className={`p-4 rounded-xl border space-y-2.5 ${
-                  isWhite
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-900/80 border-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs font-semibold text-purple-600">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4" /> สกิล & พลังพิเศษ ({state.skills?.length || 0})
-                  </span>
-                  <span className={isWhite ? 'text-slate-500 text-[10px]' : 'text-slate-400 text-[10px]'}>
-                    (คลิกที่สกิลเพื่อส่งคำสั่งใช้สกิลลงในแชททันที)
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {state.skills && state.skills.length > 0 ? (
-                    state.skills.map((skill, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          sound.playClick();
-                          onUseSkill?.(skill);
-                          onToggle();
-                        }}
-                        className={`text-xs px-3 py-1.5 rounded-xl border transition flex items-center gap-1.5 active:scale-95 touch-manipulation shadow-sm ${
-                          isWhite
-                            ? 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
-                            : 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-500/40 text-purple-200 hover:text-white'
-                        }`}
-                      >
-                        <span>⚡</span>
-                        <span className="font-medium">{skill}</span>
-                        <span className="text-[10px] opacity-75 font-mono">› ใช้</span>
-                      </button>
-                    ))
-                  ) : (
-                    <p
-                      className={`text-xs italic p-2 ${
-                        isWhite ? 'text-slate-400' : 'text-slate-500'
-                      }`}
-                    >
-                      ยังไม่ได้รับการปลุกสกิลหรือทักษะพิเศษ
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Row 5: Inventory & Items Grid */}
-              <div
-                className={`p-4 rounded-xl border space-y-2.5 ${
-                  isWhite
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-900/80 border-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs font-semibold text-emerald-600">
-                  <span className="flex items-center gap-1.5">
-                    <Package className="w-4 h-4" /> คลังสัมภาระ ({state.inventory?.length || 0})
-                  </span>
-                  <span className={isWhite ? 'text-slate-500 text-[10px]' : 'text-slate-400 text-[10px]'}>
-                    (คลิกที่ไอเทมเพื่อส่งคำสั่งหยิบใช้ลงในแชททันที)
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {state.inventory && state.inventory.length > 0 ? (
-                    state.inventory.map((item, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          sound.playClick();
-                          onUseItem?.(item);
-                          onToggle();
-                        }}
-                        className={`text-xs px-3 py-1.5 rounded-xl border transition flex items-center gap-1.5 active:scale-95 touch-manipulation shadow-sm ${
-                          isWhite
-                            ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800'
-                            : 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-500/40 text-emerald-200 hover:text-white'
-                        }`}
-                      >
-                        <span>📦</span>
-                        <span className="font-medium">{item}</span>
-                        <span className="text-[10px] opacity-75 font-mono">› ใช้</span>
-                      </button>
-                    ))
-                  ) : (
-                    <p
-                      className={`text-xs italic p-2 ${
-                        isWhite ? 'text-slate-400' : 'text-slate-500'
-                      }`}
-                    >
-                      คลังสัมภาระว่างเปล่า
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
+          {activeTab === 'skills' && (
             <div
-              className={`px-5 py-3 border-t flex items-center justify-between ${
-                isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
+              className={`p-4 rounded-xl border space-y-3 ${
+                isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
               }`}
             >
-              <span
-                className={`text-[11px] font-mono ${
-                  isWhite ? 'text-slate-500' : 'text-slate-400'
-                }`}
-              >
-                แตะภายนอกหรือปุ่มปิดเพื่อกลับสู่บทสนทนา
-              </span>
+              <div className="flex items-center justify-between text-xs font-semibold text-purple-600">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" /> สกิล & ความสามารถพิเศษ
+                </span>
+                <span className={isWhite ? 'text-slate-500 text-[10px]' : 'text-slate-400 text-[10px]'}>
+                  (คลิกเพื่อใช้งานในแชททันที)
+                </span>
+              </div>
 
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  onToggle();
-                }}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  isWhite
-                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                }`}
-              >
-                ปิดหน้าต่างสถานะ
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {state.skills && state.skills.length > 0 ? (
+                  state.skills.map((skill, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        sound.playClick();
+                        onUseSkill?.(skill);
+                        onToggle();
+                      }}
+                      className={`text-xs p-3 rounded-xl border text-left transition flex items-center justify-between gap-2 select-card-glow touch-manipulation shadow-sm ${
+                        isWhite
+                          ? 'bg-purple-50 hover:bg-purple-100/80 border-purple-200 text-purple-900'
+                          : 'bg-purple-950/40 hover:bg-purple-900/60 border-purple-500/30 text-purple-100 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">⚡</span>
+                        <span className="font-semibold">{skill}</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 border border-purple-400/30">
+                        ใช้งาน ›
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div
+                    className={`col-span-2 text-xs italic p-4 text-center border rounded-xl border-dashed ${
+                      isWhite ? 'border-slate-300 text-slate-400' : 'border-slate-800 text-slate-500'
+                    }`}
+                  >
+                    ยังไม่ได้รับการปลุกสกิลหรือทักษะพิเศษ — ดำเนินเรื่องราวเพื่อปลดล็อค
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {activeTab === 'inventory' && (
+            <div
+              className={`p-4 rounded-xl border space-y-3 ${
+                isWhite ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-semibold text-emerald-600">
+                <span className="flex items-center gap-1.5">
+                  <Package className="w-4 h-4" /> คลังสัมภาระ & ไอเทม
+                </span>
+                <span className={isWhite ? 'text-slate-500 text-[10px]' : 'text-slate-400 text-[10px]'}>
+                  (คลิกเพื่อใช้งานในแชททันที)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {state.inventory && state.inventory.length > 0 ? (
+                  state.inventory.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        sound.playClick();
+                        onUseItem?.(item);
+                        onToggle();
+                      }}
+                      className={`text-xs p-3 rounded-xl border text-left transition flex items-center justify-between gap-2 select-card-glow touch-manipulation shadow-sm ${
+                        isWhite
+                          ? 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200 text-emerald-900'
+                          : 'bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-500/30 text-emerald-100 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📦</span>
+                        <span className="font-semibold">{item}</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/30">
+                        ใช้งาน ›
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div
+                    className={`col-span-2 text-xs italic p-4 text-center border rounded-xl border-dashed ${
+                      isWhite ? 'border-slate-300 text-slate-400' : 'border-slate-800 text-slate-500'
+                    }`}
+                  >
+                    คลังสัมภาระว่างเปล่า — สำรวจโลกและค้นหาไอเทมในการเดินทาง
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </>
+
+        {/* Footer */}
+        <div
+          className={`px-5 py-3 border-t flex items-center justify-between ${
+            isWhite ? 'bg-slate-50/90 border-slate-200' : 'bg-slate-900/90 border-slate-800'
+          }`}
+        >
+          <span
+            className={`text-[11px] font-mono ${
+              isWhite ? 'text-slate-500' : 'text-slate-400'
+            }`}
+          >
+            กด Esc หรือแตะภายนอกเพื่อกลับสู่บทสนทนา
+          </span>
+
+          <button
+            onClick={() => {
+              sound.playClose();
+              onToggle();
+            }}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition active:scale-95 shadow-sm"
+          >
+            ปิดหน้าต่างสถานะ
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };

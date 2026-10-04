@@ -15,6 +15,7 @@ import {
   Archive,
   Sun,
   Moon,
+  Sliders,
 } from 'lucide-react';
 import { sound } from '../utils/sound';
 import { ThemeMode } from '../types';
@@ -30,6 +31,7 @@ interface ActionControlsProps {
   onReset: () => void;
   onOpenArchives?: () => void;
   onToggleTheme?: () => void;
+  onOpenHub?: () => void;
   archivesCount?: number;
   themeMode?: ThemeMode;
   disabled: boolean;
@@ -47,6 +49,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
   onReset,
   onOpenArchives,
   onToggleTheme,
+  onOpenHub,
   archivesCount = 0,
   themeMode = 'dark',
   disabled,
@@ -188,6 +191,19 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
 
           {/* Quick Toolbar Tools */}
           <div className="flex items-center gap-1 flex-nowrap ml-auto shrink-0">
+            {/* System Select Hub Button */}
+            {onOpenHub && (
+              <button
+                type="button"
+                onClick={onOpenHub}
+                title="เปิดหน้าต่างเลือกระบบ (Select Hub)"
+                className="px-2 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold transition flex items-center gap-1 shadow-sm select-card-glow min-h-[32px] touch-manipulation border border-indigo-400/30 active:scale-95"
+              >
+                <Sliders className="w-3 h-3 animate-pulse" />
+                <span className="text-[10px] hidden xs:inline">เลือกระบบ</span>
+              </button>
+            )}
+
             {/* Theme Toggle Button */}
             {onToggleTheme && (
               <button
